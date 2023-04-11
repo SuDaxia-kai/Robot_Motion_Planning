@@ -223,7 +223,7 @@ void visWayPointPath(MatrixXd path)
     
     line_list.points.clear();
 
-    for(int i = 0; i < path.rows(); i++){
+    for(int i = 0; i < path.rows(); i++) {
       geometry_msgs::Point p;
       p.x = path(i, 0);
       p.y = path(i, 1); 
@@ -264,7 +264,7 @@ Vector3d getPosPoly( MatrixXd polyCoeff, int k, double t )
               time(j) = pow(t, j);
 
         ret(dim) = coeff.dot(time);
-        //cout << "dim:" << dim << " coeff:" << coeff << endl;
+        cout << "dim:" << dim << " coeff:" << coeff << endl;
     }
 
     return ret;
@@ -300,9 +300,10 @@ VectorXd timeAllocation( MatrixXd Path)
     // Case 3: Trapezoidal curve of velocity
     for(int i = 0; i < time.size(); i++)
     {
-        // time(i) = 0.25 * (distance(i) - 16.0/3.0) +  8.0/3.0;
-        time(i) = 1;
+        time(i) = 0.25 * (distance(i) - 16.0/3.0) +  8.0/3.0;
+        // time(i) = 0.5;
     }
+    cout << time << endl;
     
     // Case 4: Use optimal segment times(gradient descent)
     

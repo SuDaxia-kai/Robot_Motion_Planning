@@ -99,34 +99,31 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
                                                                              Generate_Tm(Time[seg], p_order, 2),
                                                                              Generate_Tm(Time[seg], p_order, 3);
     }
-
+    cout << "M IS " << endl << M << endl;
     /*  Produce the fix constrain matrix DF */
     DF.block(0, 0, 2*d_order, 3) << Path.row(0), Vel.row(0), Acc.row(0), MatrixXd::Zero(1, 3),
                                     Path.row(Path.rows()-1), Vel.row(Vel.rows()-1), Acc.row(Acc.rows()-1), MatrixXd::Zero(1, 3);
-    for( auto seg_point = 0; seg_point < m - 1; seg_point++)
+    for( auto seg_point = 0; seg_point < m - 1; seg_point++ )
     {
         DF.row(seg_point + 2*d_order) = Path.row(seg_point + 1);
     }
-    cout << "FIX CONSTRAINT MATRIX IS " << DF << endl;
-    DD << DF,DP;
+
     /*  Produce selection matrix C  */
     C_T.block(0, 0, d_order, d_order) = MatrixXd::Identity(d_order, d_order);
     C_T.block((2*m-1) * d_order, d_order, d_order, d_order) = MatrixXd::Identity(d_order, d_order);
     for( auto num_cp = 0; num_cp < (m - 1); num_cp++ )
     {
-        /* index 跟实际个数是 -1 关系 */
-        // P_continue
-        C_T(2*num_cp*d_order + d_order, 2 * d_order + num_cp) = 1;                // p
-        C_T(2*num_cp*d_order + d_order + 1, 2 * d_order + num_cp + 1) = 1;        // v
-        C_T(2*num_cp*d_order + d_order + 2, 2 * d_order + num_cp + 2) = 1;        // a
-        C_T(2*num_cp*d_order + d_order + 3, 2 * d_order + num_cp + 3) = 1;        // j
+        C_T(2*num_cp*d_order + d_order, 2 * d_order + num_cp) = 1;                              // p
+        C_T(2*num_cp*d_order + d_order + 1, 2 * d_order + (m - 1) + num_cp * 3) = 1;            // v
+        C_T(2*num_cp*d_order + d_order + 2, 2 * d_order + (m - 1) + num_cp * 3 + 1) = 1;        // a
+        C_T(2*num_cp*d_order + d_order + 3, 2 * d_order + (m - 1) + num_cp * 3 + 2) = 1;        // j
 
-        C_T((num_cp + 1) * 2*d_order, 2 * d_order + num_cp) = 1;                  // p
-        C_T((num_cp + 1) * 2*d_order + 1, 2 * d_order + num_cp + 1) = 1;          // v
-        C_T((num_cp + 1) * 2*d_order + 2, 2 * d_order + num_cp + 2) = 1;          // a
-        C_T((num_cp + 1) * 2*d_order + 3, 2 * d_order + num_cp + 3) = 1;          // j
-
+        C_T((num_cp + 1) * 2*d_order, 2 * d_order + num_cp) = 1;                                // p
+        C_T((num_cp + 1) * 2*d_order + 1, 2 * d_order + (m - 1) + num_cp * 3) = 1;              // v
+        C_T((num_cp + 1) * 2*d_order + 2, 2 * d_order + (m - 1) + num_cp * 3 + 1) = 1;          // a
+        C_T((num_cp + 1) * 2*d_order + 3, 2 * d_order + (m - 1) + num_cp * 3 + 2) = 1;          // j
     }
+
 
     /*  Produce matrix Q */
     for( auto num_Q = 0; num_Q < m; num_Q++ )
@@ -134,7 +131,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
         MatrixXd QJ = MatrixXd::Zero(p_num1d, p_num1d);
         for( auto row = (d_order - 1); row < p_num1d; row++ )
         {
-            for( auto line = row; line < p_num1d; line++)
+            for( auto line = row; line < p_num1d; line++ )
             {
                 // refer to the blog
                 QJ(row, line) = QJ(line, row) = row*(row-1)*(row-2)*(row-3)*line*(line-1)*(line-2)*(line-3)*pow(Time(num_Q), row+line-7)/row+line-7;
@@ -144,12 +141,15 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
     }
     // cout << " Q matrix is " << endl << Q << endl;
 
-    /*  Produce the RFP and R  */
+    /*  Produce the RFP, Rpp and R  */
     MatrixXd R = C_T.transpose() * M.inverse().transpose() * Q * M.inverse() * C_T;
     MatrixXd RFP = R.block(0, 2 * d_order + m - 1, 2 * d_order + m - 1, 3 * (m - 1));
     MatrixXd RPP = R.block(2 * d_order + m - 1, 2 * d_order + m - 1, 3 * (m - 1), 3 * (m - 1));
 
-    DP = -RPP.inverse()*RFP.transpose()*DF;
+    DP = -RPP.inverse() * RFP.transpose() * DF;
+    DD << DF,
+          DP;
+    cout << "DD is " << endl << DD << endl;
     MatrixXd P = M.inverse() * C_T * DD;
     MatrixXd temp_p = MatrixXd::Zero(1, 3*p_num1d);
     for( auto seg = 0; seg < m; seg++ )
@@ -159,9 +159,6 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
                   P.block(seg * p_num1d, 2, p_num1d, 1).transpose();
         PolyCoeff.row(seg) = temp_p;
     }
-    cout << "coeff is " << endl << PolyCoeff << endl;
-    cout << "P IS " << endl << P << endl;
-    cout << PolyCoeff.row(0) << endl;
     /*  Method1: Using OOQP to solve this problem  */
     // A.block(0, 0, d_order, p_num1d) << Generate_Tm(0, p_order, 0),
     //                                    Generate_Tm(0, p_order, 1),
