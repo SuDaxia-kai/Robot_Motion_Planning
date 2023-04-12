@@ -99,7 +99,7 @@ int main(int argc, char** argv)
 
     nh.param("planning/vel",   _Vel,   1.0 );
     nh.param("planning/acc",   _Acc,   1.0 );
-    nh.param("planning/dev_order", _dev_order,  3 );
+    nh.param("planning/dev_order", _dev_order,  4 );
     nh.param("planning/min_order", _min_order,  3 );
     nh.param("vis/vis_traj_width", _vis_traj_width, 0.15);
 
@@ -168,7 +168,7 @@ void visWayPointTraj( MatrixXd polyCoeff, VectorXd time)
 
     for(int i = 0; i < time.size(); i++ )
     {   
-        for (double t = 0.0; t < time(i); t += 0.01, count += 1)
+        for (double t = 0.0; t < time(i); t += 0.001, count += 1)
         {
           pos = getPosPoly(polyCoeff, i, t);
           cur(0) = pt.x = pos(0);
@@ -264,7 +264,7 @@ Vector3d getPosPoly( MatrixXd polyCoeff, int k, double t )
               time(j) = pow(t, j);
 
         ret(dim) = coeff.dot(time);
-        cout << "dim:" << dim << " coeff:" << coeff << endl;
+        // cout << "dim:" << dim << " coeff:" << coeff << endl;
     }
 
     return ret;
@@ -286,7 +286,6 @@ VectorXd timeAllocation( MatrixXd Path)
     The time allocation is many relative timeline but not one common timeline
 
     */
-
     // calculate the distance between two points
     for(int i = 0; i < distance.size(); i++)
     {
@@ -298,13 +297,21 @@ VectorXd timeAllocation( MatrixXd Path)
 
     // Case 2: Calculate time distribution in proportion to distance between 2 points
     // Case 3: Trapezoidal curve of velocity
-    for(int i = 0; i < time.size(); i++)
-    {
-        time(i) = 0.25 * (distance(i) - 16.0/3.0) +  8.0/3.0;
-        // time(i) = 0.5;
+    const double t = _Vel/_Acc;
+    const double dist_threshold_1 = _Acc * t * t;
+
+    double segment_t;
+    for (unsigned int i = 1; i < Path.rows(); ++i) {
+        double delta_dist = (Path.row(i) - Path.row(i - 1)).norm();
+        if (delta_dist > dist_threshold_1) {
+            segment_t = t * 2 + (delta_dist - dist_threshold_1) / _Vel;
+        } else {
+            segment_t = std::sqrt(delta_dist / _Acc);
+        }
+
+        time[i - 1] = segment_t;
     }
     cout << time << endl;
-    
     // Case 4: Use optimal segment times(gradient descent)
     
     return time;

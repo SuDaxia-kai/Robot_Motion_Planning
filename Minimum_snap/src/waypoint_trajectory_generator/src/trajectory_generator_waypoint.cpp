@@ -63,12 +63,6 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
     MatrixXd PolyCoeff = MatrixXd::Zero(m, 3 * p_num1d);           // position(x,y,z), so we need (3 * p_num1d) coefficients
     VectorXd Px(p_num1d * m), Py(p_num1d * m), Pz(p_num1d * m);
 
-    /*
-        Method1: Using OOQP to solve this problem 
-        Matrix A and D are the constraint matrixs
-    */
-    MatrixXd A = MatrixXd::Zero(2 * d_order - 5 + 5 * m, m*p_num1d);
-    MatrixXd D = MatrixXd::Zero(2 * d_order - 5 + 5 * m, 3); 
     /** 
         Method2: Close-form solution for this problem
         whose form is [ D_F, D_P ]'
@@ -86,7 +80,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
         matrix Q
     */
     MatrixXd Q = MatrixXd::Zero(m * p_num1d, m * p_num1d);
-
+    
     /*   Produce Mapping Matrix M to the entire trajectory, M is a mapping matrix that maps polynomial coefficients to derivatives.   */
     for( auto seg = 0; seg < m; seg++ )
     {
@@ -99,7 +93,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
                                                                              Generate_Tm(Time[seg], p_order, 2),
                                                                              Generate_Tm(Time[seg], p_order, 3);
     }
-    cout << "M IS " << endl << M << endl;
+    // cout << "M IS " << endl << M << endl;
     /*  Produce the fix constrain matrix DF */
     DF.block(0, 0, 2*d_order, 3) << Path.row(0), Vel.row(0), Acc.row(0), MatrixXd::Zero(1, 3),
                                     Path.row(Path.rows()-1), Vel.row(Vel.rows()-1), Acc.row(Acc.rows()-1), MatrixXd::Zero(1, 3);
@@ -129,7 +123,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
     for( auto num_Q = 0; num_Q < m; num_Q++ )
     {
         MatrixXd QJ = MatrixXd::Zero(p_num1d, p_num1d);
-        for( auto row = (d_order - 1); row < p_num1d; row++ )
+        for( auto row = d_order; row < p_num1d; row++ )
         {
             for( auto line = row; line < p_num1d; line++ )
             {
@@ -139,7 +133,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
         }
         Q.block(num_Q*p_num1d, num_Q*p_num1d, p_num1d, p_num1d) = QJ;
     }
-    // cout << " Q matrix is " << endl << Q << endl;
+    cout << " Q matrix is " << endl << Q << endl;
 
     /*  Produce the RFP, Rpp and R  */
     MatrixXd R = C_T.transpose() * M.inverse().transpose() * Q * M.inverse() * C_T;
@@ -159,81 +153,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
                   P.block(seg * p_num1d, 2, p_num1d, 1).transpose();
         PolyCoeff.row(seg) = temp_p;
     }
-    /*  Method1: Using OOQP to solve this problem  */
-    // A.block(0, 0, d_order, p_num1d) << Generate_Tm(0, p_order, 0),
-    //                                    Generate_Tm(0, p_order, 1),
-    //                                    Generate_Tm(0, p_order, 2),
-    //                                    Generate_Tm(0, p_order, 3);
-    
-                                         
-    // A.block(d_order, A.cols() - p_num1d, d_order, p_num1d) << Generate_Tm(Time(-1), p_order, 0),
-    //                                                           Generate_Tm(Time(-1), p_order, 1),
-    //                                                           Generate_Tm(Time(-1), p_order, 2),
-    //                                                           Generate_Tm(Time(-1), p_order, 3);
-
-    // D.block(0, 0, 2*d_order, 3) << Path(0),Vel(0),Acc(0), MatrixXd::Zero(1, 3),
-    //                                Path(-1),Vel(-1),Acc(-1), MatrixXd::Zero(1, 3);
-
-    
-    // // Waypoint Is Firm
-    // for(int i = 0; i < m - 1; i++)
-    // {
-    //     A.block(2*d_order + i, i * p_num1d, 0, p_num1d) = Generate_Tm(Time(i), p_order, 0);
-    //     D.row(i + 2*d_order) = Path.row(i + 1);
-    // }
-
-    // // Position continuity constrain between each 2 segments
-    // for(int i = 0; i < m - 1; i++)
-    // {
-    //     A.block((2*d_order + m - 1), i * p_num1d, 0, 2 * p_num1d) << Generate_Tm(Time(i), p_order, 0),
-    //                                                                  -Generate_Tm(0, p_order, 0);
-    //     D.row(i + 2*d_order + m - 1) = MatrixXd::Zero(1, 3);
-    // }
-
-    // // Velocity continuity constrain between each 2 segments
-    // for(int i = 0; i < m - 1; i++)
-    // {
-    //     A.block((2*d_order + 2*(m - 1)), i * p_num1d, 0, 2 * p_num1d) << Generate_Tm(Time(i), p_order, 1),
-    //                                                                      -Generate_Tm(0, p_order, 1);
-    //     D.row(i + 2*d_order + 2*(m - 1)) = MatrixXd::Zero(1, 3);
-    // }
-
-    // // acceleration continuity constrain between each 2 segments
-    // for(int i = 0; i < m - 1; i++)
-    // {
-    //     A.block((2*d_order + 3*(m - 1)), i * p_num1d, 0, 2 * p_num1d) << Generate_Tm(Time(i), p_order, 2),
-    //                                                                      -Generate_Tm(0, p_order, 2);
-    //     D.row(i + 2*d_order + 3*(m - 1)) = MatrixXd::Zero(1, 3);
-    // }
-
-    // // jerk continuity constrain between each 2 segments
-    // for(int i = 0; i < m - 1; i++)
-    // {
-    //     A.block((2*d_order + 4*(m - 1)), i * p_num1d, 0, 2 * p_num1d) << Generate_Tm(Time(i), p_order, 3),
-    //                                                                      -Generate_Tm(0, p_order, 3);
-    //     D.row(i + 2*d_order + 4*(m - 1)) = MatrixXd::Zero(1, 3);
-    // }
-    
-    
-
-    /*   Produce the dereivatives in X, Y and Z axis directly.  */
-    
-
-
-
-
-
-
-
-
-
-
-
-
-    /*   Produce the Minimum Snap cost function, the Hessian Matrix   */
-
-
-
+    cout << "coeff is " << endl << P << endl;
 
     return PolyCoeff;
 }
