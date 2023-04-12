@@ -286,11 +286,6 @@ VectorXd timeAllocation( MatrixXd Path)
     The time allocation is many relative timeline but not one common timeline
 
     */
-    // calculate the distance between two points
-    for(int i = 0; i < distance.size(); i++)
-    {
-        distance(i) = (Path.row(i + 1) - Path.row(i)).squaredNorm(); 
-    }
 
     // Case 1: Simply set all time distribution as 1s
     // time.Ones();
@@ -303,6 +298,7 @@ VectorXd timeAllocation( MatrixXd Path)
     double segment_t;
     for (unsigned int i = 1; i < Path.rows(); ++i) {
         double delta_dist = (Path.row(i) - Path.row(i - 1)).norm();
+        cout << delta_dist << endl;
         if (delta_dist > dist_threshold_1) {
             segment_t = t * 2 + (delta_dist - dist_threshold_1) / _Vel;
         } else {

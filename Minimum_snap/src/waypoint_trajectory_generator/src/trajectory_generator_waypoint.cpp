@@ -25,9 +25,10 @@ int TrajectoryGeneratorWaypoint::Factorial(int x)
 Eigen::MatrixXd Generate_Tm(double t, int n_order, int r)
 {
     MatrixXd Tm = MatrixXd::Zero(1, n_order+1);
-    int F = 1;
+    
     for(int i = r; i <= n_order; i++)
     {
+        int F = 1;
         for(int j = i; j > i - r; j--)
             F *= j;
         Tm(i) = F * pow(t, i-r); 
@@ -93,7 +94,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
                                                                              Generate_Tm(Time[seg], p_order, 2),
                                                                              Generate_Tm(Time[seg], p_order, 3);
     }
-    // cout << "M IS " << endl << M << endl;
+    cout << "M IS " << endl << M << endl;
     /*  Produce the fix constrain matrix DF */
     DF.block(0, 0, 2*d_order, 3) << Path.row(0), Vel.row(0), Acc.row(0), MatrixXd::Zero(1, 3),
                                     Path.row(Path.rows()-1), Vel.row(Vel.rows()-1), Acc.row(Acc.rows()-1), MatrixXd::Zero(1, 3);
@@ -118,7 +119,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
         C_T((num_cp + 1) * 2*d_order + 3, 2 * d_order + (m - 1) + num_cp * 3 + 2) = 1;          // j
     }
 
-
+    cout << C_T << endl;
     /*  Produce matrix Q */
     for( auto num_Q = 0; num_Q < m; num_Q++ )
     {
@@ -128,7 +129,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
             for( auto line = row; line < p_num1d; line++ )
             {
                 // refer to the blog
-                QJ(row, line) = QJ(line, row) = row*(row-1)*(row-2)*(row-3)*line*(line-1)*(line-2)*(line-3)*pow(Time(num_Q), row+line-7)/row+line-7;
+                QJ(row, line) = QJ(line, row) = (row*(row-1)*(row-2)*(row-3)*line*(line-1)*(line-2)*(line-3)*pow(Time(num_Q), row+line-7))/(row+line-7);
             }
         }
         Q.block(num_Q*p_num1d, num_Q*p_num1d, p_num1d, p_num1d) = QJ;
