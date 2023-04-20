@@ -75,7 +75,7 @@ void trajGeneration(Eigen::MatrixXd path)
 {
     TrajectoryGeneratorWaypoint  trajectoryGeneratorWaypoint;
     
-    MatrixXd vel = MatrixXd::Zero(2, 3); 
+    MatrixXd vel = MatrixXd::Zero(2, 3);
     MatrixXd acc = MatrixXd::Zero(2, 3);
 
     vel.row(0) = _startVel;

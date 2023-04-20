@@ -36,6 +36,44 @@ Eigen::MatrixXd Generate_Tm(double t, int n_order, int r)
     return Tm;
 }
 
+Eigen::MatrixXd Generate_M(int d_order, int m, int p_num1d, int p_order, const Eigen::VectorXd &Time)
+{
+    MatrixXd M = MatrixXd::Zero(2 * d_order * m, m * p_num1d);
+    for( auto seg = 0; seg < m; seg++ )
+    {
+        M.block( seg * 2 * d_order, seg * p_num1d, 2 * d_order, p_num1d ) << Generate_Tm(0, p_order, 0),
+                                                                             Generate_Tm(0, p_order, 1),
+                                                                             Generate_Tm(0, p_order, 2),
+                                                                             Generate_Tm(0, p_order, 3),
+                                                                             Generate_Tm(Time[seg], p_order, 0),
+                                                                             Generate_Tm(Time[seg], p_order, 1),
+                                                                             Generate_Tm(Time[seg], p_order, 2),
+                                                                             Generate_Tm(Time[seg], p_order, 3);
+    }
+    cout << "M IS " << endl << M << endl;
+    return M;
+}
+
+Eigen::MatrixXd Generate_Q(int d_order, int m, int p_num1d, const Eigen::VectorXd &Time)
+{
+    MatrixXd Q = MatrixXd::Zero(m * p_num1d, m * p_num1d);
+    for( auto num_Q = 0; num_Q < m; num_Q++ )
+        {
+            MatrixXd QJ = MatrixXd::Zero(p_num1d, p_num1d);
+            for( auto row = d_order; row < p_num1d; row++ )
+            {
+                for( auto line = row; line < p_num1d; line++ )
+                {
+                    // refer to the blog
+                    QJ(row, line) = QJ(line, row) = (row*(row-1)*(row-2)*(row-3)*line*(line-1)*(line-2)*(line-3)*pow(Time(num_Q), row+line-7))/(row+line-7);
+                }
+            }
+            Q.block(num_Q*p_num1d, num_Q*p_num1d, p_num1d, p_num1d) = QJ;
+        }
+        cout << " Q matrix is " << endl << Q << endl;
+        return Q;
+}
+
 /*
 
     STEP 2: Learn the "Closed-form solution to minimum snap" in L5, then finish this PolyQPGeneration function
@@ -70,7 +108,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
         D_F is 2*d_order + (k - 1)
         D_P is 3 * (k-1)
     */
-    MatrixXd M = MatrixXd::Zero(2 * d_order * m, m * p_num1d);
+
     MatrixXd C_T = MatrixXd::Zero(2 * d_order + (m - 1) * 2 * d_order, 2 * d_order + m - 1 + 3 * (m - 1));  // C is the selection matrix
     MatrixXd DF = MatrixXd::Zero(2 * d_order + m - 1, 3);
     MatrixXd DP = MatrixXd::Zero(3 * (m - 1), 3);                     // It is the solution of close-form
@@ -80,21 +118,11 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
         public parameter:
         matrix Q
     */
-    MatrixXd Q = MatrixXd::Zero(m * p_num1d, m * p_num1d);
+
     
     /*   Produce Mapping Matrix M to the entire trajectory, M is a mapping matrix that maps polynomial coefficients to derivatives.   */
-    for( auto seg = 0; seg < m; seg++ )
-    {
-        M.block( seg * 2 * d_order, seg * p_num1d, 2 * d_order, p_num1d ) << Generate_Tm(0, p_order, 0),
-                                                                             Generate_Tm(0, p_order, 1),
-                                                                             Generate_Tm(0, p_order, 2),
-                                                                             Generate_Tm(0, p_order, 3),
-                                                                             Generate_Tm(Time[seg], p_order, 0),
-                                                                             Generate_Tm(Time[seg], p_order, 1),
-                                                                             Generate_Tm(Time[seg], p_order, 2),
-                                                                             Generate_Tm(Time[seg], p_order, 3);
-    }
-    cout << "M IS " << endl << M << endl;
+    MatrixXd M = Generate_M(d_order, m, p_num1d, p_order, Time);
+
     /*  Produce the fix constrain matrix DF */
     DF.block(0, 0, 2*d_order, 3) << Path.row(0), Vel.row(0), Acc.row(0), MatrixXd::Zero(1, 3),
                                     Path.row(Path.rows()-1), Vel.row(Vel.rows()-1), Acc.row(Acc.rows()-1), MatrixXd::Zero(1, 3);
@@ -121,20 +149,7 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
 
     cout << C_T << endl;
     /*  Produce matrix Q */
-    for( auto num_Q = 0; num_Q < m; num_Q++ )
-    {
-        MatrixXd QJ = MatrixXd::Zero(p_num1d, p_num1d);
-        for( auto row = d_order; row < p_num1d; row++ )
-        {
-            for( auto line = row; line < p_num1d; line++ )
-            {
-                // refer to the blog
-                QJ(row, line) = QJ(line, row) = (row*(row-1)*(row-2)*(row-3)*line*(line-1)*(line-2)*(line-3)*pow(Time(num_Q), row+line-7))/(row+line-7);
-            }
-        }
-        Q.block(num_Q*p_num1d, num_Q*p_num1d, p_num1d, p_num1d) = QJ;
-    }
-    cout << " Q matrix is " << endl << Q << endl;
+    MatrixXd Q = Generate_Q(d_order, m, p_num1d, Time);
 
     /*  Produce the RFP, Rpp and R  */
     MatrixXd R = C_T.transpose() * M.inverse().transpose() * Q * M.inverse() * C_T;
@@ -154,7 +169,6 @@ Eigen::MatrixXd TrajectoryGeneratorWaypoint::PolyQPGeneration(
                   P.block(seg * p_num1d, 2, p_num1d, 1).transpose();
         PolyCoeff.row(seg) = temp_p;
     }
-    cout << "coeff is " << endl << P << endl;
 
     return PolyCoeff;
 }
